@@ -1,0 +1,15 @@
+2026-01-16 16:46:48,623 - INFO - Telegram client initialized
+2026-01-16 16:46:49,933 - INFO - Client authenticated. Scraping 3 channels...
+2026-01-16 16:46:49,935 - INFO - Scraping @cheMed123...
+2026-01-16 16:46:50,105 - INFO - Starting scrape of @cheMed123 (limit=100)
+2026-01-16 16:48:40,393 - INFO - Finished scraping @cheMed123: 76 messages saved
+2026-01-16 16:48:43,399 - INFO - Scraping @lobelia4cosmetics...
+2026-01-16 16:48:43,578 - INFO - Starting scrape of @lobelia4cosmetics (limit=100)
+2026-01-16 16:51:13,915 - INFO - Finished scraping @lobelia4cosmetics: 100 messages saved
+2026-01-16 16:51:16,921 - INFO - Scraping @tikvahpharma...
+2026-01-16 16:51:17,103 - INFO - Starting scrape of @tikvahpharma (limit=100)
+2026-01-16 16:53:15,623 - INFO - Finished scraping @tikvahpharma: 100 messages saved
+2026-01-16 16:53:18,636 - INFO - Scraping complete. Total messages: 276
+2026-01-16 16:53:18,636 - INFO -   @cheMed123: 76 messages
+2026-01-16 16:53:18,636 - INFO -   @lobelia4cosmetics: 100 messages
+2026-01-16 16:53:18,636 - INFO -   @tikvahpharma: 100 messages
