@@ -1,0 +1,106 @@
+version: 2
+
+# -------------------------------
+# SOURCES
+# -------------------------------
+sources:
+  - name: telegram
+    database: medical_telegram_warehouse
+    schema: raw
+    tables:
+      - name: telegram_messages
+      - name: yolo_detections   # YOLO object detection results
+
+# -------------------------------
+# MODELS
+# -------------------------------
+models:
+
+  # Dimension tables
+  - name: dim_channels
+    description: "Dimension table containing Telegram channel metadata."
+    columns:
+      - name: channel_key
+        description: "Surrogate primary key for each channel."
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_dates
+    description: "Date dimension table for time-based analysis."
+    columns:
+      - name: date_key
+        description: "Primary key for the date dimension."
+        tests:
+          - unique
+          - not_null
+
+  # Fact tables
+  - name: fct_messages
+    description: "Fact table containing Telegram messages."
+    columns:
+      - name: message_id
+        tests:
+          - unique
+          - not_null
+      - name: channel_key
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_channels')
+              field: channel_key
+      - name: date_key
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_dates')
+              field: date_key
+
+  - name: fct_image_detections
+    description: "Fact table linking YOLO object detections to Telegram messages."
+    columns:
+      - name: detection_key
+        description: "Surrogate primary key for the detection event."
+        tests:
+          - unique
+          - not_null
+
+      - name: message_id
+        description: "Foreign key to fct_messages.message_id."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_messages')
+              field: message_id
+
+      - name: channel_key
+        description: "Foreign key to dim_channels.channel_key."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_channels')
+              field: channel_key
+
+      - name: primary_category
+        description: "YOLO-based classification: promotional, product_display, lifestyle, other."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['promotional', 'product_display', 'lifestyle', 'other']
+
+      - name: confidence_score
+        description: "Average confidence score for detected objects in the image."
+        tests:
+          - not_null
+          - expression_is_between:
+              min: 0
+              max: 1
+
+      - name: detected_objects
+        description: "Array of object labels detected by YOLO."
+
+      - name: image_path
+        description: "Path to the original image file."
+
+      - name: enriched_at
+        description: "Timestamp of when the detection was loaded into the warehouse."
