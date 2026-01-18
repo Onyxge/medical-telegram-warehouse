@@ -2,7 +2,6 @@
 __pycache__/
 .env
 data/raw/
-logs/
 target/
 dbt_packages/
 .pt
