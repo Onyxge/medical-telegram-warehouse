@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.env
+data/raw/
+logs/
+target/
+dbt_packages/
+.pt
+.session
+runs
+telegram_scraper_session.session
+yolov8n.pt
+.DS_Store
+.idea
