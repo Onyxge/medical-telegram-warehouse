@@ -241,56 +241,94 @@ python src/yolo_detection.py
 * Clear separation of ingestion, transformation, and enrichment simplifies debugging
 
 ---
-
 ## Limitations & Future Work
 
 ### Current Limitations
 
-**Computer Vision Domain Gap**
-The YOLOv8 model used is a general-purpose object detector trained on COCO classes. As a result, it cannot reliably distinguish between medically relevant product types such as specific drugs, supplements, or cosmetics. Product presence is inferred indirectly through container-like objects rather than domain-aware labels.
+- **Domain-Specific Vision Accuracy**  
+  The YOLOv8 model used for image enrichment is trained on general-purpose object classes (COCO). As a result, it cannot reliably distinguish between specific medical or pharmaceutical packaging types or identify brand-level details.
 
-**Image-Only Enrichment**
-The current enrichment pipeline focuses exclusively on visual signals. Images containing embedded text (e.g., dosage instructions, promotional claims, or price lists) are not processed using OCR, which limits semantic understanding of visual content.
+- **No Advanced Text Analytics Yet**  
+  Telegram message text is currently stored and modeled structurally, but no higher-level analytics such as topic modeling, sentiment analysis, or entity extraction have been implemented.
 
-**Batch-Oriented Ingestion**
-Telegram data ingestion is implemented as a batch process. This introduces latency between message publication and analytical availability, making the system less suitable for near-real-time monitoring or alerting use cases.
+- **Batch-Oriented Processing**  
+  The pipeline operates in batch mode. Data is scraped, loaded, transformed, and enriched manually or sequentially rather than in near real-time.
 
-**Limited Advanced NLP**
-While messages are ingested and modeled, no advanced natural language processing is currently applied. Sentiment, topic evolution, misinformation detection, and entity extraction are not yet implemented.
+- **No External Data Consumption Layer**  
+  While the warehouse is analytics-ready, there is currently no programmatic interface for downstream applications, dashboards, or services to query curated business metrics.
 
-**Single-Source Scope**
-The platform currently focuses only on Telegram channels. Cross-platform analysis (e.g., Facebook, X, Instagram) is out of scope but would be required for broader market intelligence.
+- **Manual Pipeline Execution**  
+  All pipeline stages (scraping, loading, dbt runs, enrichment) are triggered manually, increasing the risk of missed steps and reducing operational reliability.
 
-### Future Work and Next Tasks
+---
 
-**Task 4 – Advanced Text Analytics & Insights**
-The next phase of the project focuses on extracting higher-level insights from Telegram message text, including:
+### Future Work
 
-* Sentiment analysis to track public perception of medical and pharmaceutical products
-* Topic modeling to identify emerging health trends and promotional narratives
-* Named Entity Recognition (NER) for drugs, brands, organizations, and medical conditions
-* Time-series analysis to correlate content trends with engagement metrics
+#### Task 4 – Build an Analytical API
 
-These features will transform raw message content into decision-ready analytical signals.
+**Objective:** Expose the analytics warehouse through a REST API that answers real business questions.
 
-**Task 5 – Business Intelligence & Visualization Layer**
-A dedicated analytics consumption layer will be added, including:
+Planned enhancements include:
 
-* BI dashboards (e.g., Power BI, Metabase, or Superset)
-* Channel-level and product-level performance views
-* Image vs. text engagement comparisons
-* Trend monitoring and anomaly detection
+- Develop a REST API using **FastAPI** or **Flask**
+- Expose curated endpoints such as:
+  - Top active medical channels by posting volume
+  - Image-based promotional content trends over time
+  - Product vs lifestyle image ratios per channel
+  - Daily or weekly engagement metrics
+- Query only **dbt mart models** (not raw or staging tables) to preserve data contracts
+- Implement request validation, pagination, and basic authentication
+- Enable downstream consumers such as:
+  - BI tools
+  - Dashboards
+  - External analytical services
 
-This task bridges the gap between the analytical warehouse and non-technical stakeholders.
+This API will serve as the **official consumption layer** of the data platform.
 
-**Model Specialization & Fine-Tuning**
-Future iterations may include fine-tuning vision models on domain-specific datasets or introducing custom classifiers for medical product recognition.
+---
 
-**Streaming & Automation**
-Replacing batch ingestion with a streaming or scheduled incremental pipeline would improve freshness and enable real-time use cases such as compliance monitoring and early-warning systems.
+#### Task 5 – Pipeline Orchestration
 
-**Scalability & Governance Enhancements**
-Planned improvements include metadata management, data catalog integration, and role-based access controls to support enterprise-scale usage.
+**Objective:** Automate and operationalize the entire data pipeline using an orchestration tool.
+
+Planned orchestration improvements:
+
+- Introduce an orchestration framework such as:
+  - **Apache Airflow**
+  - **Prefect**
+  - **Dagster**
+- Define a DAG with clear task dependencies:
+  1. Telegram data ingestion
+  2. Raw data loading into PostgreSQL
+  3. dbt transformations and tests
+  4. YOLO image enrichment
+  5. Analytical API refresh or cache invalidation
+- Add:
+  - Task-level retries
+  - Failure notifications
+  - Execution logging
+- Support:
+  - Scheduled daily runs
+  - Backfills for historical dates
+  - Environment-specific configurations (dev vs prod)
+
+This step transitions the project from a **development pipeline** to a **production-grade data system**.
+
+---
+
+### Long-Term Enhancements
+
+- Integrate **OCR** for extracting text from product packaging images
+- Add **sentiment analysis and topic modeling** for Telegram message content
+- Introduce **data freshness and SLA monitoring**
+- Support **incremental dbt models** for performance optimization
+- Enable **streaming ingestion** to reduce data latency
+
+---
+
+### Final Note
+
+With Tasks 4 and 5 implemented, the platform evolves into a **fully automated, API-driven analytics system**, capable of serving both internal stakeholders and external applications with trustworthy, enriched insights.
 
 ## Conclusion
 
