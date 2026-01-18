@@ -1,0 +1,30 @@
+# Core
+python-dotenv
+loguru
+pydantic
+
+# Telegram
+telethon
+
+# Data
+pandas
+sqlalchemy
+psycopg2-binary
+
+# dbt
+dbt-postgres
+
+# API
+fastapi
+uvicorn
+
+# Orchestration
+dagster
+dagster-webserver
+
+# Computer Vision
+ultralytics
+opencv-python
+
+# Testing
+pytest
