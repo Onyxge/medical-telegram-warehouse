@@ -1,47 +1,54 @@
--- models/marts/fct_image_detections.sql
+{{ config(
+    materialized='table',
+    schema='marts'
+) }}
 
-with yolo as (
-
-    select 
+WITH yolo AS (
+    SELECT
         message_id,
         channel_name,
         image_path,
-        -- Use COALESCE to provide default values if column is missing
-        coalesce(primary_category, 'other') as primary_category,
-        coalesce(confidence_score, 0.0) as confidence_score,
-        coalesce(detected_objects::text[], array[]::text[]) as detected_objects
-    from {{ source('telegram', 'yolo_detections') }}
-
+        detected_objects,
+        confidence_score,
+        image_category,
+        -- [NEW] 1. Generate a row number for every duplicate pair
+        ROW_NUMBER() OVER(
+            PARTITION BY message_id, channel_name
+            ORDER BY message_id
+        ) as rn
+    FROM {{ source('telegram', 'yolo_detections') }}
 ),
 
-messages as (
+-- [NEW] 2. Filter out duplicates immediately
+yolo_deduped AS (
+    SELECT *
+    FROM yolo
+    WHERE rn = 1
+),
 
-    select 
-        message_id, 
-        channel_key, 
+messages AS (
+    SELECT
+        message_id,
+        channel_key,
         date_key
-    from {{ ref('fct_messages') }}
-
+    FROM {{ ref('fct_messages') }}
 )
 
-select
-    -- Surrogate key for detection
-    md5(concat(cast(y.message_id as varchar), y.channel_name)) as detection_key,
-
-    -- Foreign keys
+SELECT
+    md5(
+        concat(
+            CAST(y.message_id AS varchar),
+            y.channel_name
+        )
+    ) AS detection_key,
+    m.message_id,
     m.channel_key,
     m.date_key,
-    y.message_id,
-
-    -- YOLO insights
-    y.primary_category,
+    COALESCE(y.image_category, 'other') AS primary_category,
     y.detected_objects,
     y.confidence_score,
     y.image_path,
-
-    -- Metadata
-    current_timestamp as enriched_at
-
-from yolo y
-inner join messages m
-    on cast(y.message_id as bigint) = m.message_id
+    CURRENT_TIMESTAMP AS enriched_at
+FROM yolo_deduped AS y  -- [CHANGED] Joining the deduped version, not raw 'yolo'
+INNER JOIN messages AS m
+    ON CAST(y.message_id AS bigint) = m.message_id
