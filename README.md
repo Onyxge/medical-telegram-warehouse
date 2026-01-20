@@ -1,335 +1,208 @@
-# Medical Telegram Analytics Platform
+# Ethiopian Medical Business Insights Platform (EMBIP)
 
-## Overview
+## 📖 Executive Summary
 
-This project implements an end-to-end data engineering and analytics platform for analyzing Telegram channels in the medical, pharmaceutical, and cosmetics domain.
+The **Ethiopian Medical Business Insights Platform (EMBIP)** is a comprehensive data engineering solution designed to centralize, standardize, and analyze the fragmented digital footprint of the Ethiopian medical sector on Telegram.
 
-The system ingests unstructured Telegram messages and images, stores them in a scalable data lake, transforms them into a clean, tested analytical warehouse using dbt, and enriches visual content using YOLO-based object detection.
-
-The architecture follows modern lakehouse and dimensional modeling best practices, ensuring reliability, auditability, and extensibility.
+By transitioning from ad hoc manual monitoring to an automated **ELT (Extract, Load, Transform)** architecture, this platform enables data-driven decision-making related to pharmaceutical availability, pricing trends, and marketing strategies. The system ingests unstructured data streams, enriches them using Computer Vision via **YOLOv5**, and delivers structured business intelligence through a high-performance **REST API**.
 
 ---
 
-## High-Level Architecture
+## 🏗 System Architecture
 
-```
-Telegram API
-     |
-     v
-Data Ingestion (Python, Telethon)
-     |
-     v
-Raw Data Lake (JSON + Images)
-     |
-     v
-PostgreSQL (raw schema)
-     |
-     v
-dbt Transformations
-(staging → marts)
-     |
-     v
-Analytics-Ready Warehouse
-     |
-     v
-YOLO Image Enrichment
-```
+The platform adheres to **Modern Data Stack** principles, prioritizing modularity, scalability, and data resilience.
+
+> [Insert Architecture Diagram Here]
+
+### Architectural Decisions (ADR)
+
+| Component     | Choice                    | Rationale                                                                                                                                                                                          |
+| ------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ingestion     | ELT over ETL              | Raw data is loaded immediately into a Data Lake or Warehouse using a raw schema before transformation. This preserves data lineage and allows historical reprocessing when business logic changes. |
+| Orchestration | Asset-Based (Dagster)     | Unlike task-based orchestrators such as Airflow, Dagster understands data assets and their dependencies, preventing downstream jobs from running on stale data.                                    |
+| Modeling      | Dimensional (Star Schema) | The warehouse uses Fact and Dimension tables following the Kimball methodology, optimizing query performance for BI and aggregation workloads.                                                     |
+| Enrichment    | Hybrid AI                 | Combines NLP for text and Computer Vision using YOLOv5 for images to capture the full context of visual commerce common in Telegram channels.                                                      |
 
 ---
 
-## Repository Structure
+## 🛠 Technology Stack
 
-```
+* **Ingestion:** Python, Telethon (MTProto API)
+* **Storage (Data Lake):** Local JSON or Object Storage
+* **Data Warehouse:** PostgreSQL 15+
+* **Transformation:** dbt Core
+* **Orchestration:** Dagster
+* **Computer Vision:** PyTorch, YOLOv5
+* **API / Serving:** FastAPI, Uvicorn, Pydantic
+* **Containerization:** Docker (Optional, Roadmap)
+
+---
+
+## 📂 Repository Structure
+
+The project is organized to clearly separate concerns between extraction, transformation, orchestration, and serving.
+
+```bash
 medical-telegram-warehouse/
-├── data/
-│   └── raw/
-│       ├── telegram/
-│       │   └── messages/
-│       │       └── ingestion_date=YYYY-MM-DD/
-│       │           ├── channel=channel_name/
-│       │           └── _manifest.json
-│       └── images/
-│           ├── channel_name/
-│           │   └── message_id.jpg
+├── api/                       # [Task 4] REST API and Serving Layer
+│   ├── main.py                # Application entrypoint
+│   ├── crud.py                # Database transaction logic
+│   └── schemas.py             # Pydantic data contracts
 │
-├── src/
-│   ├── datalake.py              # Data lake utilities
-│   ├── telegram.py              # Telegram scraping logic
-│   ├── raw_loader.py            # Load raw JSON into PostgreSQL
-│   └── yolo_detection.py        # YOLO object detection pipeline
-│
-├── medical_warehouse/
+├── medical_warehouse/         # [Task 2] dbt transformation layer
 │   ├── models/
-│   │   ├── staging/
-│   │   │   └── stg_telegram_messages.sql
-│   │   ├── marts/
-│   │   │   ├── dim_channels.sql
-│   │   │   ├── dim_dates.sql
-│   │   │   ├── fct_messages.sql
-│   │   │   └── fct_image_detections.sql
-│   │   └── schema.yml
-│   └── dbt_project.yml
+│   │   ├── raw/               # Source configurations
+│   │   ├── staging/           # Cleaning and casting views
+│   │   └── marts/             # Final dimensional models (facts and dims)
+│   └── tests/                 # Data quality tests
 │
-├── tests/
-│   ├── assert_no_future_messages.sql
-│   └── assert_positive_views.sql
+├── orchestration/             # [Task 5] Dagster automation
+│   ├── assets/                # Asset definitions (scrapers, dbt, YOLO)
+│   └── jobs/                  # Schedule definitions
 │
-├── logs/
-│   └── telegram_scraper.log
+├── scripts/                   # [Task 1] Extraction and load scripts
+│   ├── telegram_scraper.py    # Telethon scraper implementation
+│   └── load_raw.py            # JSON to Postgres loader
 │
-├── requirements.txt
-├── .env
-└── README.md
+├── src/                       # [Task 3] Machine learning modules
+│   └── yolo_detect.py         # Object detection inference engine
+│
+├── data/                      # Local data lake (gitignored)
+└── requirements.txt           # Dependency management
 ```
 
 ---
 
-## Task 1 – Data Ingestion & Data Lake
+## 🚀 Getting Started
 
-### Key Features
+### Prerequisites
 
-* Telegram scraping using Telethon
-* Rate-limit safe execution
-* Handles messages with and without media
-* Idempotent ingestion
-* Partitioned raw data lake design
+* Python 3.10+
+* PostgreSQL 14 or higher
+* Telegram API credentials (`api_id`, `api_hash`) from `my.telegram.org`
 
-### Data Lake Design
+### 1. Environment Configuration
 
-* Messages stored as raw JSON
-* Partitioned by `ingestion_date` and `channel`
-* Images stored separately using deterministic paths
-* No premature schema enforcement
+Clone the repository and create a `.env` file in the project root.
 
-This design ensures:
-
-* Reproducibility
-* Backfill capability
-* Full audit trail
-
----
-
-## Task 2 – Data Modeling & Transformation (dbt)
-
-### Modeling Approach
-
-The warehouse follows a star schema optimized for analytics.
-
-#### Fact Tables
-
-* `fct_messages`: one row per Telegram message
-* `fct_image_detections`: one row per image detection event
-
-#### Dimension Tables
-
-* `dim_channels`
-* `dim_dates`
-
-### Staging Layer
-
-Staging models:
-
-* Cast data types
-* Rename columns consistently
-* Filter invalid records
-* Add derived fields such as `message_length` and `has_image`
-
-### Data Quality Enforcement
-
-Implemented using dbt:
-
-* `not_null`
-* `unique`
-* `relationships`
-
-Custom data tests:
-
-* No future-dated messages
-* Non-negative view counts
-
-All tests pass successfully.
-
----
-
-## Task 3 – Image Enrichment with YOLO
-
-### Objective
-
-Use computer vision to extract analytical signals from Telegram images.
-
-### Implementation
-
-* YOLOv8 nano model for efficiency
-* Detects general objects using COCO classes
-
-### Classification Logic
-
-* `promotional`: person + product
-* `product_display`: product only
-* `lifestyle`: person only
-* `other`: neither detected
-
-### Outputs
-
-* Annotated images saved locally
-* Detection results stored in `raw.yolo_detections`
-* Enriched analytics table: `fct_image_detections`
-
----
-
-## Running the Pipeline
-
-### 1. Set Environment Variables
-
-Create a `.env` file:
-
-```
-PG_HOST=localhost
-PG_PORT=5432
-PG_DB=medical_telegram_warehouse
-PG_USER=postgres
-PG_PASSWORD=your_password
+```bash
+git clone https://github.com/YourOrg/medical-telegram-warehouse.git
+cd medical-telegram-warehouse
+cp .env.example .env
 ```
 
-### 2. Install Dependencies
+#### Required `.env` Variables
 
+```ini
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=your db name
+DB_USER=postgres
+DB_PASSWORD=your password
+
+# Telegram API Configuration
+TG_API_ID=123456
+TG_API_HASH=your_api_hash
+TG_SESSION_NAME=medical_scraper
 ```
+
+### 2. Installation
+
+Install Python dependencies using a virtual environment.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Run Telegram Scraper
+### 3. Database Initialization
 
-```
-python src/telegram.py
-```
+Ensure PostgreSQL is running. Table creation is handled by the scraper and dbt, but the database must exist.
 
-### 4. Load Raw Data to PostgreSQL
-
-```
-python src/raw_loader.py
-```
-
-### 5. Run dbt Transformations
-
-From inside `medical_warehouse/`:
-
-```
-dbt run
-dbt test
-```
-
-### 6. Generate dbt Documentation
-
-```
-dbt docs generate
-dbt docs serve
-```
-
-### 7. Run YOLO Image Detection
-
-```
-python src/yolo_detection.py
+```sql
+CREATE DATABASE medical_dw;
 ```
 
 ---
 
-## Key Learnings
+## ⚙️ Usage and Orchestration
 
-* Raw data should remain raw until transformation
-* dbt provides strong guarantees around data trust
-* Pre-trained vision models add value even without domain-specific training
-* Clear separation of ingestion, transformation, and enrichment simplifies debugging
+The entire pipeline is managed using **Dagster**, providing a single pane of glass for operations.
 
----
-## Limitations & Future Work
+### Running the Pipeline (UI Method)
 
-### Current Limitations
+1. Launch the Dagster development server:
 
-- **Domain-Specific Vision Accuracy**  
-  The YOLOv8 model used for image enrichment is trained on general-purpose object classes (COCO). As a result, it cannot reliably distinguish between specific medical or pharmaceutical packaging types or identify brand-level details.
+   ```bash
+   dagster dev -m orchestration
+   ```
+2. Navigate to `http://127.0.0.1:3000`.
+3. Select `ingestion_job` and click **Materialize All**.
 
-- **No Advanced Text Analytics Yet**  
-  Telegram message text is currently stored and modeled structurally, but no higher-level analytics such as topic modeling, sentiment analysis, or entity extraction have been implemented.
+This executes the full pipeline: Scrape → Load → Enrich (YOLO) → Transform (dbt).
 
-- **Batch-Oriented Processing**  
-  The pipeline operates in batch mode. Data is scraped, loaded, transformed, and enriched manually or sequentially rather than in near real-time.
+### Manual Execution (CLI Method)
 
-- **No External Data Consumption Layer**  
-  While the warehouse is analytics-ready, there is currently no programmatic interface for downstream applications, dashboards, or services to query curated business metrics.
+Individual components can be run independently for debugging.
 
-- **Manual Pipeline Execution**  
-  All pipeline stages (scraping, loading, dbt runs, enrichment) are triggered manually, increasing the risk of missed steps and reducing operational reliability.
+**Scraping**
 
----
+```bash
+python scripts/telegram_scraper.py
+```
 
-### Future Work
+**Transformation**
 
-#### Task 4 – Build an Analytical API
+```bash
+cd medical_warehouse
+dbt build
+```
 
-**Objective:** Expose the analytics warehouse through a REST API that answers real business questions.
+**Serving (API)**
 
-Planned enhancements include:
-
-- Develop a REST API using **FastAPI** or **Flask**
-- Expose curated endpoints such as:
-  - Top active medical channels by posting volume
-  - Image-based promotional content trends over time
-  - Product vs lifestyle image ratios per channel
-  - Daily or weekly engagement metrics
-- Query only **dbt mart models** (not raw or staging tables) to preserve data contracts
-- Implement request validation, pagination, and basic authentication
-- Enable downstream consumers such as:
-  - BI tools
-  - Dashboards
-  - External analytical services
-
-This API will serve as the **official consumption layer** of the data platform.
+```bash
+uvicorn api.main:app --reload
+```
 
 ---
 
-#### Task 5 – Pipeline Orchestration
+## 📊 Data Model (Star Schema)
 
-**Objective:** Automate and operationalize the entire data pipeline using an orchestration tool.
+The warehouse converts raw JSON data into a structured schema optimized for BI tools such as Tableau, Power BI, and Metabase.
 
-Planned orchestration improvements:
-
-- Introduce an orchestration framework such as:
-  - **Apache Airflow**
-  - **Prefect**
-  - **Dagster**
-- Define a DAG with clear task dependencies:
-  1. Telegram data ingestion
-  2. Raw data loading into PostgreSQL
-  3. dbt transformations and tests
-  4. YOLO image enrichment
-  5. Analytical API refresh or cache invalidation
-- Add:
-  - Task-level retries
-  - Failure notifications
-  - Execution logging
-- Support:
-  - Scheduled daily runs
-  - Backfills for historical dates
-  - Environment-specific configurations (dev vs prod)
-
-This step transitions the project from a **development pipeline** to a **production-grade data system**.
+* **fct_messages:** Central fact table containing `view_count`, `share_count`, and text metadata.
+* **fct_image_detections:** Fact table containing YOLO inference confidence scores and detected object counts per message.
+* **dim_channels:** Slowly Changing Dimension (Type 1) for channel metadata including name and subscriber count.
+* **dim_dates:** Standard date dimension for temporal aggregation.
 
 ---
 
-### Long-Term Enhancements
+## 🔌 API Reference
 
-- Integrate **OCR** for extracting text from product packaging images
-- Add **sentiment analysis and topic modeling** for Telegram message content
-- Introduce **data freshness and SLA monitoring**
-- Support **incremental dbt models** for performance optimization
-- Enable **streaming ingestion** to reduce data latency
+The platform exposes a fully documented REST API. After starting the server, access Swagger UI at:
+
+`http://localhost:8000/docs`
+
+### Key Endpoints
+
+| Method | Endpoint                  | Description                                                       |
+| ------ | ------------------------- | ----------------------------------------------------------------- |
+| GET    | `/reports/top-products`   | Returns trending medical products based on NLP frequency analysis |
+| GET    | `/reports/visual-content` | Analyzes image-heavy channels and detection ratios                |
+| GET    | `/channels/{id}/activity` | Returns time-series data for channel posting activity             |
+| GET    | `/search/messages`        | Full-text search across the historical message archive            |
 
 ---
 
-### Final Note
+## 🛣 Roadmap
 
-With Tasks 4 and 5 implemented, the platform evolves into a **fully automated, API-driven analytics system**, capable of serving both internal stakeholders and external applications with trustworthy, enriched insights.
+* **Phase 1 (Current):** Single-node deployment with local data lake
+* **Phase 2:** Containerization using Docker Compose and cloud deployment with AWS RDS and S3
+* **Phase 3:** Advanced NLP using Named Entity Recognition for extracting drug prices and currencies
+* **Phase 4:** Real-time alerting via Telegram bots for keyword-based triggers
 
-## Conclusion
+---
 
-This project demonstrates a production-level analytics pipeline, combining data engineering, analytics engineering, and AI-based enrichment. The system is modular, testable, and extensible, making it suitable for real-world analytical workloads.
+**Developed by:** Yonatan
