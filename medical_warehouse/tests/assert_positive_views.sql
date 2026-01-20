@@ -2,6 +2,6 @@
 
 SELECT
     message_id,
-    views
+    view_count
 FROM {{ ref('stg_telegram_messages') }}
-WHERE views < 0
+WHERE view_count < 0
