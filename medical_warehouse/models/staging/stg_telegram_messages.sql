@@ -1,36 +1,30 @@
 {{ config(
-    materialized='view'
+    materialized='view',
+    schema='staging'
 ) }}
 
-with raw_messages as (
-
-    select *
-    from {{ source('raw', 'telegram_messages') }}
-
+WITH raw_messages AS (
+    SELECT *
+    FROM {{ source('raw', 'telegram_messages') }}
 ),
 
-cleaned as (
-
-    select
+cleaned AS (
+    SELECT
         message_id,
         channel_name,
         channel_title,
-        -- Convert message_date to timestamp
-        cast(message_date as timestamp) as message_date,
-        coalesce(message_text, '') as message_text,
+        CAST(message_date AS timestamp) AS message_date,
+        COALESCE(message_text, '') AS message_text,
         has_media,
         image_path,
-        coalesce(views, 0) as views,
-        coalesce(forwards, 0) as forwards,
-        -- Calculated field: message length
-        length(coalesce(message_text, '')) as message_length,
-        -- Flag for images
-        case when has_media = true and image_path is not null then true else false end as has_image
-    from raw_messages
-
-    where message_id is not null
-      and channel_name is not null
-
+        COALESCE(views, 0) AS view_count,
+        COALESCE(forwards, 0) AS forward_count,
+        LENGTH(COALESCE(message_text, '')) AS message_length,
+        CASE WHEN has_media = TRUE AND image_path IS NOT NULL THEN TRUE ELSE FALSE END AS has_image
+    FROM raw_messages
+    WHERE message_id IS NOT NULL
+      AND channel_name IS NOT NULL
 )
 
-select * from cleaned
+SELECT *
+FROM cleaned
